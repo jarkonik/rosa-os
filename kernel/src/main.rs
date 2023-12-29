@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use core::{arch::asm, ffi::c_void};
+use core::{arch::asm, ffi::c_void, ptr::null_mut};
 
 use bootloader_api::info::MemoryRegionKind;
 use conquer_once::spin::OnceCell;
@@ -10,6 +10,7 @@ use printk::LockedPrintk;
 const CONFIG: bootloader_api::BootloaderConfig = {
     let mut config = bootloader_api::BootloaderConfig::new_default();
     config.kernel_stack_size = 100 * 1024; // 100 KiB
+    config.mappings.physical_memory = Some(bootloader_api::config::Mapping::Dynamic);
     config
 };
 bootloader_api::entry_point!(kernel_main, config = &CONFIG);
@@ -28,10 +29,22 @@ unsafe fn write_hello() {
     write_serial(10);
 }
 
+static mut MEMORY_START: *mut u64 = null_mut();
+static mut MEMORY_PTR: *mut u64 = null_mut();
+static mut MEMORY_END: *mut u64 = null_mut();
+
 #[allow(dead_code)]
-fn kmalloc(_size: u64) -> *mut c_void {
-    todo!();
+unsafe fn kmalloc(size: usize) -> *mut c_void {
+    if MEMORY_PTR.add(size) >= MEMORY_END {
+        return null_mut();
+    }
+
+    let result = unsafe { MEMORY_PTR };
+    unsafe { MEMORY_PTR = MEMORY_PTR.add(size) }
+    result as *mut c_void
 }
+
+fn kfree(ptr: *mut c_void) {}
 
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let fb = boot_info.framebuffer.as_mut().unwrap();
@@ -47,10 +60,41 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         .iter()
         .filter(|r| matches!(r.kind, MemoryRegionKind::Usable))
     {
-        log::info!("Hello, Kernel! {} {} ", region.start, region.end);
+        // There may be more than one filter, currently we assume there is only one here
+        unsafe {
+            MEMORY_START = (boot_info.physical_memory_offset.into_option().unwrap() + region.start)
+                as *mut u64;
+            MEMORY_PTR = (boot_info.physical_memory_offset.into_option().unwrap() + region.start)
+                as *mut u64;
+            MEMORY_END =
+                (boot_info.physical_memory_offset.into_option().unwrap() + region.end) as *mut u64;
+        }
+        break;
     }
 
     unsafe {
+        let ptr = kmalloc(1000 * 8);
+        if ptr == null_mut() {
+            panic!();
+        }
+
+        log::info!(
+            "{:?} {:?} {:?} {:?}",
+            MEMORY_START,
+            MEMORY_PTR,
+            MEMORY_END,
+            ptr
+        );
+
+        for i in 1..1000 {
+            *(ptr.add(i * 8) as *mut u64) = i as u64;
+        }
+
+        for i in 1..1000 {
+            let x = *(ptr.add(i * 8) as *mut u64);
+            log::info!("{}", x);
+        }
+
         init_serial();
         write_hello();
         write_hello();
@@ -61,7 +105,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 }
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn kpanic(info: &core::panic::PanicInfo) -> ! {
+    log::info!("KERNEL PANIC {}", info);
+
     loop {}
 }
 

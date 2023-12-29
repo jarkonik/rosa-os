@@ -1,8 +1,9 @@
 #![no_std]
 #![no_main]
 
-use core::arch::asm;
+use core::{arch::asm, ffi::c_void};
 
+use bootloader_api::info::MemoryRegionKind;
 use conquer_once::spin::OnceCell;
 use printk::LockedPrintk;
 
@@ -27,6 +28,10 @@ unsafe fn write_hello() {
     write_serial(10);
 }
 
+fn kmalloc(size: u64) -> *mut c_void {
+    todo!();
+}
+
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let fb = boot_info.framebuffer.as_mut().unwrap();
     let fb_info = fb.info().clone();
@@ -35,7 +40,17 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         PRINTK.get_or_init(move || printk::LockedPrintk::new(fb.buffer_mut(), fb_info));
     log::set_logger(kernel_logger).expect("logger already set");
     log::set_max_level(log::LevelFilter::Trace);
-    log::info!("Hello, Kernel!");
+
+    for region in boot_info
+        .memory_regions
+        .into_iter()
+        .filter(|r| match r.kind {
+            MemoryRegionKind::Usable => true,
+            _ => false,
+        })
+    {
+        log::info!("Hello, Kernel! {} {} ", region.start, region.end);
+    }
 
     unsafe {
         init_serial();

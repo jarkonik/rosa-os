@@ -6,7 +6,7 @@ fn main() {
 
     let target_dir = get_cargo_target_dir().unwrap();
     bootloader::BiosBoot::new(Path::new(&kernel_path))
-        .create_disk_image(&Path::new(&target_dir).join("myos.img"))
+        .create_disk_image(&Path::new(&target_dir).join("rosa-os.img"))
         .unwrap();
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "myos"
+name = "rosa-os"
 version = "0.1.0"
 edition = "2021"
 

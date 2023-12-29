@@ -28,13 +28,14 @@ unsafe fn write_hello() {
     write_serial(10);
 }
 
-fn kmalloc(size: u64) -> *mut c_void {
+#[allow(dead_code)]
+fn kmalloc(_size: u64) -> *mut c_void {
     todo!();
 }
 
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let fb = boot_info.framebuffer.as_mut().unwrap();
-    let fb_info = fb.info().clone();
+    let fb_info = fb.info();
 
     let kernel_logger =
         PRINTK.get_or_init(move || printk::LockedPrintk::new(fb.buffer_mut(), fb_info));
@@ -43,11 +44,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     for region in boot_info
         .memory_regions
-        .into_iter()
-        .filter(|r| match r.kind {
-            MemoryRegionKind::Usable => true,
-            _ => false,
-        })
+        .iter()
+        .filter(|r| matches!(r.kind, MemoryRegionKind::Usable))
     {
         log::info!("Hello, Kernel! {} {} ", region.start, region.end);
     }
@@ -58,6 +56,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         write_hello();
         write_hello();
     };
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 
@@ -79,16 +78,16 @@ unsafe fn write_serial(a: u8) {
 unsafe fn init_serial() {
     outb(PORT + 1, 0x00); // Disable all interrupts
     outb(PORT + 3, 0x80); // Enable DLAB (set baud rate divisor)
-    outb(PORT + 0, 0x03); // Set divisor to 3 (lo byte) 38400 baud
+    outb(PORT, 0x03); // Set divisor to 3 (lo byte) 38400 baud
     outb(PORT + 1, 0x00); //                  (hi byte)
     outb(PORT + 3, 0x03); // 8 bits, no parity, one stop bit
     outb(PORT + 2, 0xC7); // Enable FIFO, clear them, with 14-byte threshold
     outb(PORT + 4, 0x0B); // IRQs enabled, RTS/DSR set
     outb(PORT + 4, 0x1E); // Set in loopback mode, test the serial chip
-    outb(PORT + 0, 0xAE); // Test serial chip (send byte 0xAE and check if serial returns same byte)
+    outb(PORT, 0xAE); // Test serial chip (send byte 0xAE and check if serial returns same byte)
 
     // Check if serial is faulty (i.e: not same byte as sent)
-    if inb(PORT + 0) != 0xAE {
+    if inb(PORT) != 0xAE {
         panic!("Serial is faulty");
     }
 

@@ -3,7 +3,6 @@
 
 use core::arch::asm;
 
-use bootloader_api::config::FrameBuffer;
 use conquer_once::spin::OnceCell;
 use printk::LockedPrintk;
 

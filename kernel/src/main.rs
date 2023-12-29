@@ -3,6 +3,10 @@
 
 use core::arch::asm;
 
+use bootloader_api::config::FrameBuffer;
+use conquer_once::spin::OnceCell;
+use printk::LockedPrintk;
+
 const CONFIG: bootloader_api::BootloaderConfig = {
     let mut config = bootloader_api::BootloaderConfig::new_default();
     config.kernel_stack_size = 100 * 1024; // 100 KiB
@@ -11,6 +15,8 @@ const CONFIG: bootloader_api::BootloaderConfig = {
 bootloader_api::entry_point!(kernel_main, config = &CONFIG);
 
 const PORT: u16 = 0x3F8;
+
+pub static PRINTK: OnceCell<LockedPrintk> = OnceCell::uninit();
 
 unsafe fn write_hello() {
     write_serial(104);
@@ -23,6 +29,15 @@ unsafe fn write_hello() {
 }
 
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
+    let fb = boot_info.framebuffer.as_mut().unwrap();
+    let fb_info = fb.info().clone();
+
+    let kernel_logger =
+        PRINTK.get_or_init(move || printk::LockedPrintk::new(fb.buffer_mut(), fb_info));
+    log::set_logger(kernel_logger).expect("logger already set");
+    log::set_max_level(log::LevelFilter::Trace);
+    log::info!("Hello, Kernel!");
+
     unsafe {
         init_serial();
         write_hello();

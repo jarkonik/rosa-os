@@ -1,4 +1,4 @@
-# Rosa OS
+# RosaOS
 
 Hobby OS named after Rosa Luxemburg
 

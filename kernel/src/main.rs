@@ -55,6 +55,10 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     log::set_logger(kernel_logger).expect("logger already set");
     log::set_max_level(log::LevelFilter::Trace);
 
+    log::info!("Welcome to RosaOS");
+
+    kernel::init();
+
     for region in boot_info
         .memory_regions
         .iter()
@@ -105,7 +109,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 }
 
 #[panic_handler]
-fn kpanic(info: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
     log::info!("KERNEL PANIC {}", info);
 
     loop {}

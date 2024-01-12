@@ -12,4 +12,7 @@ log = "0.4.20"
 printk = "0.3.2"
 lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
 x86_64 = "0.14.11"
+pic8259 = "0.10.4"
+spin = "0.9.8"
+
 
